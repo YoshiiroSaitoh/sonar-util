@@ -12,6 +12,20 @@ Windows上の複数ディレクトリをSonarQube Projectとして一括作成�
 - Community BuildとEnterprise Serverの切り替え
 - SonarScanner propertiesファイルによる接続先・プロキシ・解析設定の管理
 
+## ドキュメント
+
+- [詳細設計書](docs/design.md)
+- [システム概要](docs/design.md#2-システム概要)
+- [設定設計](docs/design.md#4-設定設計)
+- [GUI設計](docs/design.md#7-gui設計)
+- [Create処理](docs/design.md#9-create処理)
+- [Scan処理](docs/design.md#10-scan処理)
+- [Delete処理](docs/design.md#11-delete処理)
+- [CommunityとEnterprise](docs/design.md#12-communityとenterprise)
+- [プロキシと通信経路](docs/design.md#14-プロキシと通信経路)
+- [冪等性](docs/design.md#17-冪等性)
+- [現在の制約](docs/design.md#21-現在の制約)
+
 ## ファイル構成
 
 | ファイル | 用途 |
