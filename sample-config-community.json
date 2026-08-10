@@ -13,7 +13,11 @@
   },
   "scanner": {
     "executable": "sonar-scanner.bat",
-    "parallelism": 4
+    "parallelism": 4,
+    "javaBinaries": {
+      "directory": "classes",
+      "useDummyWhenMissing": true
+    }
   },
   "splitDirectories": [],
   "excludeDirectories": [

@@ -101,6 +101,8 @@ TokenやパスワードをGit管理ファイルへ保存しない。
 | `sonar.applicationKey` | string/null | 未指定可 | 空ならApplication API無効 |
 | `scanner.executable` | string | なし | 必須 |
 | `scanner.parallelism` | integer | `1` | 1以上 |
+| `scanner.javaBinaries.directory` | string | `classes` | 候補からの相対classディレクトリ |
+| `scanner.javaBinaries.useDummyWhenMissing` | boolean | `true` | 不在時の一時空ディレクトリ |
 | `splitDirectories` | string[] | `[]` | 指定時は全パスの存在確認 |
 | `excludeDirectories` | string[] | `[]` | 自動列挙時のみ使用 |
 | `allowDelete` | boolean | `false` | falseなら削除拒否 |
@@ -308,7 +310,10 @@ Visibility、権限、タグなどは設定しない。SonarQube側の既定値�
 -Dsonar.projectKey=<候補Key>
 -Dsonar.projectName=<候補名>
 -Dsonar.token=<環境変数のToken>
+-Dsonar.java.binaries=<候補直下のclassesまたは一時空ディレクトリ>
 ```
+
+`scanner.javaBinaries.directory` が候補直下に存在すればその絶対パスを使用する。存在せず `useDummyWhenMissing=true` の場合は、Scannerバッチ単位でOS一時領域に空ディレクトリを1つ作成し、該当候補で共有する。全Jobの完了または例外終了後に `finally` で削除する。Project配下にはダミーを作成しない。
 
 ### 10.3 解析結果
 

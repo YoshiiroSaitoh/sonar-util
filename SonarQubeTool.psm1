@@ -24,6 +24,11 @@ function Read-SonarToolConfig {
     if (-not $config.scanner.executable) { throw "Required config property 'scanner.executable' is missing." }
     if (-not $config.scanner.PSObject.Properties['parallelism']) { $config.scanner | Add-Member parallelism 1 }
     if ([int]$config.scanner.parallelism -lt 1) { throw 'scanner.parallelism must be 1 or greater.' }
+    if (-not $config.scanner.PSObject.Properties['javaBinaries']) {
+        $config.scanner | Add-Member javaBinaries ([pscustomobject]@{ directory = 'classes'; useDummyWhenMissing = $true })
+    }
+    if (-not $config.scanner.javaBinaries.PSObject.Properties['directory']) { $config.scanner.javaBinaries | Add-Member directory 'classes' }
+    if (-not $config.scanner.javaBinaries.PSObject.Properties['useDummyWhenMissing']) { $config.scanner.javaBinaries | Add-Member useDummyWhenMissing $true }
     if (-not $config.PSObject.Properties['splitDirectories']) { $config | Add-Member splitDirectories @() }
     if (-not $config.PSObject.Properties['excludeDirectories']) { $config | Add-Member excludeDirectories @() }
     if (-not $config.PSObject.Properties['allowDelete']) { $config | Add-Member allowDelete $false }
@@ -208,31 +213,45 @@ function Invoke-SonarScannerBatch {
     $executable = [string]$Config.scanner.executable
     $url = [string]$Config.sonar.url
     $propertiesFile = [string]$Config.sonar.resolvedPropertiesFile
-    $work = @($Candidates | ForEach-Object {
-        [pscustomobject]@{ Name=$_.Name; Path=$_.Path; ProjectKey=$_.ProjectKey; Executable=$executable; Url=$url; Token=$token; PropertiesFile=$propertiesFile }
-    })
-    if (-not $PSCmdlet.ShouldProcess("$($work.Count) project(s)", "Run scanner with parallelism $parallelism")) { return @() }
-
-    $pending = [Collections.Queue]::new()
-    $work | ForEach-Object { $pending.Enqueue($_) }
-    $running = @()
-    $results = @()
-    while ($pending.Count -or $running.Count) {
-        while ($pending.Count -and $running.Count -lt $parallelism) {
-            $item = $pending.Dequeue()
-            $running += Start-Job -ArgumentList $item -ScriptBlock {
-                param($workItem)
-                Set-Location -LiteralPath $workItem.Path
-                $output = & $workItem.Executable "-Dproject.settings=$($workItem.PropertiesFile)" "-Dsonar.projectKey=$($workItem.ProjectKey)" "-Dsonar.projectName=$($workItem.Name)" "-Dsonar.token=$($workItem.Token)" 2>&1 | Out-String
-                [pscustomobject]@{ ProjectKey=$workItem.ProjectKey; ExitCode=$LASTEXITCODE; Output=$output }
-            }
-        }
-        $done = Wait-Job -Job $running -Any
-        $results += Receive-Job -Job $done
-        Remove-Job -Job $done
-        $running = @($running | Where-Object Id -ne $done.Id)
+    if (-not $PSCmdlet.ShouldProcess("$($Candidates.Count) project(s)", "Run scanner with parallelism $parallelism")) { return @() }
+    $dummyBinaries = $null
+    if ([bool]$Config.scanner.javaBinaries.useDummyWhenMissing) {
+        $dummyBinaries = Join-Path ([IO.Path]::GetTempPath()) "sonar-util-empty-classes-$([guid]::NewGuid().ToString('N'))"
+        $null = [IO.Directory]::CreateDirectory($dummyBinaries)
     }
-    return @($results)
+    $work = @($Candidates | ForEach-Object {
+        $configuredBinaries = Join-Path $_.Path ([string]$Config.scanner.javaBinaries.directory)
+        $javaBinaries = if (Test-Path -LiteralPath $configuredBinaries -PathType Container) {
+            (Resolve-Path -LiteralPath $configuredBinaries).Path
+        } elseif ($dummyBinaries) { $dummyBinaries } else { $null }
+        [pscustomobject]@{ Name=$_.Name; Path=$_.Path; ProjectKey=$_.ProjectKey; Executable=$executable; Url=$url; Token=$token; PropertiesFile=$propertiesFile; JavaBinaries=$javaBinaries }
+    })
+    try {
+        $pending = [Collections.Queue]::new()
+        $work | ForEach-Object { $pending.Enqueue($_) }
+        $running = @()
+        $results = @()
+        while ($pending.Count -or $running.Count) {
+            while ($pending.Count -and $running.Count -lt $parallelism) {
+                $item = $pending.Dequeue()
+                $running += Start-Job -ArgumentList $item -ScriptBlock {
+                    param($workItem)
+                    Set-Location -LiteralPath $workItem.Path
+                    $arguments = @("-Dproject.settings=$($workItem.PropertiesFile)", "-Dsonar.projectKey=$($workItem.ProjectKey)", "-Dsonar.projectName=$($workItem.Name)", "-Dsonar.token=$($workItem.Token)")
+                    if ($workItem.JavaBinaries) { $arguments += "-Dsonar.java.binaries=$($workItem.JavaBinaries)" }
+                    $output = & $workItem.Executable @arguments 2>&1 | Out-String
+                    [pscustomobject]@{ ProjectKey=$workItem.ProjectKey; ExitCode=$LASTEXITCODE; Output=$output; JavaBinaries=$workItem.JavaBinaries }
+                }
+            }
+            $done = Wait-Job -Job $running -Any
+            $results += Receive-Job -Job $done
+            Remove-Job -Job $done
+            $running = @($running | Where-Object Id -ne $done.Id)
+        }
+        return @($results)
+    } finally {
+        if ($dummyBinaries -and (Test-Path -LiteralPath $dummyBinaries)) { Remove-Item -LiteralPath $dummyBinaries -Recurse -Force -ErrorAction SilentlyContinue }
+    }
 }
 
 Export-ModuleMember -Function Read-SonarToolConfig, Read-SonarProperties, ConvertTo-SonarProjectKey, Get-SonarProjectCandidates, New-SonarProjectCandidate,

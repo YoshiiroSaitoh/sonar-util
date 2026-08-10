@@ -317,6 +317,8 @@ HTTPS接続で証明書エラーになる場合、証明書検証を無効化す
 | `sonar.applicationKey` | 任意 | Enterprise Application Key。Communityでは `null` または省略 |
 | `scanner.executable` | 必須 | Scanner実行ファイル名または絶対パス |
 | `scanner.parallelism` | 任意 | Scanner最大並列数。既定値1、1以上 |
+| `scanner.javaBinaries.directory` | 任意 | 各Project直下のJava classディレクトリ。既定値 `classes` |
+| `scanner.javaBinaries.useDummyWhenMissing` | 任意 | classesがない場合に一時空ディレクトリを渡す。既定値 `true` |
 | `splitDirectories` | 任意 | 候補にする相対ディレクトリを明示指定 |
 | `excludeDirectories` | 任意 | 自動候補検出から除外するディレクトリ名 |
 | `allowDelete` | 任意 | Project削除を許可するか |
@@ -343,6 +345,35 @@ ScannerがPATHにない場合:
   "parallelism": 4
 }
 ```
+
+### Javaバイナリの自動指定
+
+各Project候補の直下に `classes` がある規約では、次の設定を使用します。
+
+```json
+"scanner": {
+  "executable": "sonar-scanner.bat",
+  "parallelism": 4,
+  "javaBinaries": {
+    "directory": "classes",
+    "useDummyWhenMissing": true
+  }
+}
+```
+
+Scan時の動作:
+
+```text
+<Project>\classes が存在
+→ その絶対パスを sonar.java.binaries へ指定
+
+<Project>\classes が存在しない
+→ OSの一時領域に空のclassesディレクトリを作成
+→ その絶対パスを sonar.java.binaries へ指定
+→ 全Scanner終了後に一時ディレクトリを削除
+```
+
+ダミーディレクトリはProject配下を変更しません。これはE2Eやダミー解析用です。実際の `.class` がないJava Projectでは参照解決の精度が低下するため、本番解析ではコンパイル済みの `classes` を用意してください。自動指定を無効にする場合は `useDummyWhenMissing=false` とし、`classes`が存在しない候補では `sonar.java.binaries` を実行時指定しません。
 
 この設定はCLIの候補と、GUIの **Select configured** の初期選択に使われます。GUIでは設定外のディレクトリもツリーから選択できますが、その選択をJSONへ保存する機能はありません。
 
