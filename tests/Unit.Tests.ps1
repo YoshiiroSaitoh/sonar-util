@@ -25,10 +25,18 @@ $temp = Join-Path ([IO.Path]::GetTempPath()) "sonar-tool-test-$([guid]::NewGuid(
 try {
     $null = New-Item -ItemType Directory -Path (Join-Path $temp 'alpha') -Force
     $null = New-Item -ItemType Directory -Path (Join-Path $temp 'node_modules') -Force
-    $config = [pscustomobject]@{ rootPath=$temp; projectKeyPrefix='test'; splitDirectories=@(); excludeDirectories=@('node_modules') }
+    $config = [pscustomobject]@{ rootPath=$temp; projectKeyPrefix='test'; projectName=[pscustomobject]@{mode='directoryName';separator=' / '}; splitDirectories=@(); excludeDirectories=@('node_modules') }
     $items = @(Get-SonarProjectCandidates $config)
     Assert-Equal 1 $items.Count 'excluded directory'
     Assert-Equal 'test-alpha' $items[0].ProjectKey 'candidate key'
+
+    $nested = Join-Path $temp 'services\api'
+    $null = New-Item -ItemType Directory -Path $nested -Force
+    $config.splitDirectories = @('services\api')
+    $config.projectName.mode = 'relativePath'
+    $nestedItems = @(Get-SonarProjectCandidates $config)
+    Assert-Equal 'services / api' $nestedItems[0].Name 'relative path project name'
+    Assert-Equal 'test-services-api' $nestedItems[0].ProjectKey 'nested candidate key'
 } finally { Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue }
 
 $moduleText = Get-Content -Raw (Join-Path $PSScriptRoot '..\SonarQubeTool.psm1')

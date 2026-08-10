@@ -28,6 +28,14 @@ function Read-SonarToolConfig {
     if (-not $config.PSObject.Properties['excludeDirectories']) { $config | Add-Member excludeDirectories @() }
     if (-not $config.PSObject.Properties['allowDelete']) { $config | Add-Member allowDelete $false }
     if (-not $config.PSObject.Properties['deleteOnlyCreatedByTool']) { $config | Add-Member deleteOnlyCreatedByTool $true }
+    if (-not $config.PSObject.Properties['projectName']) {
+        $config | Add-Member projectName ([pscustomobject]@{ mode = 'directoryName'; separator = ' / ' })
+    }
+    if (-not $config.projectName.PSObject.Properties['mode']) { $config.projectName | Add-Member mode 'directoryName' }
+    if (-not $config.projectName.PSObject.Properties['separator']) { $config.projectName | Add-Member separator ' / ' }
+    if ([string]$config.projectName.mode -notin @('directoryName', 'relativePath')) {
+        throw "projectName.mode must be 'directoryName' or 'relativePath'."
+    }
     return $config
 }
 
@@ -82,8 +90,11 @@ function Get-SonarProjectCandidates {
 
     @($directories | Sort-Object FullName | ForEach-Object {
         $relative = $_.FullName.Substring($root.Length).TrimStart('\', '/')
+        $projectName = if ([string]$Config.projectName.mode -eq 'relativePath') {
+            ($relative -split '[\\/]' | Where-Object { $_ }) -join [string]$Config.projectName.separator
+        } else { $_.Name }
         [pscustomobject]@{
-            Name = $_.Name
+            Name = $projectName
             Path = $_.FullName
             RelativePath = $relative
             ProjectKey = ConvertTo-SonarProjectKey -Prefix $Config.projectKeyPrefix -RelativePath $relative

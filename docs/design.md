@@ -93,6 +93,8 @@ TokenやパスワードをGit管理ファイルへ保存しない。
 |---|---|---|---|
 | `rootPath` | string | なし | 必須、候補生成時に存在確認 |
 | `projectKeyPrefix` | string | なし | 必須 |
+| `projectName.mode` | string | `directoryName` | `directoryName` または `relativePath` |
+| `projectName.separator` | string | ` / ` | 相対パス表示時の区切り |
 | `sonar.propertiesFile` | string | なし | 必須、相対または絶対パス |
 | `sonar.applicationKey` | string/null | 未指定可 | 空ならApplication API無効 |
 | `scanner.executable` | string | なし | 必須 |
@@ -145,7 +147,7 @@ rootPath
 
 | プロパティ | 内容 |
 |---|---|
-| `Name` | ディレクトリ名。Project表示名の初期値 |
+| `Name` | 設定により末尾ディレクトリ名、または区切り変換した相対パス |
 | `Path` | Scannerの作業ディレクトリとなる絶対パス |
 | `RelativePath` | `rootPath` からの相対パス |
 | `ProjectKey` | prefixと相対パスから生成したKey |
@@ -170,6 +172,13 @@ Project Keyは次の規則で生成する。
 | `test` | `services\API` | `test-services-api` |
 
 Projectの同一性はProject Keyだけで判定する。
+
+Project表示名は `projectName.mode` で決まる。`directoryName` は末尾ディレクトリ名、`relativePath` は相対パスの各階層を `projectName.separator` で連結する。
+
+```text
+services\api + relativePath + " / " → services / api
+jobs\api     + relativePath + " / " → jobs / api
+```
 
 ## 7. GUI設計
 
@@ -545,4 +554,3 @@ Pending Queue
 8. Scannerログのファイル保存
 9. API用明示プロキシ設定
 10. PesterによるAPIモックテストとGUI自動テスト
-

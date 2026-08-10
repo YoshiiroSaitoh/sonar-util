@@ -1,6 +1,10 @@
 {
   "rootPath": "E:\\dev\\workspace\\sonarqubetool\\testdata",
   "projectKeyPrefix": "test",
+  "projectName": {
+    "mode": "relativePath",
+    "separator": " / "
+  },
   "sonar": {
     "propertiesFile": "sonar-community.properties",
     "applicationKey": null
