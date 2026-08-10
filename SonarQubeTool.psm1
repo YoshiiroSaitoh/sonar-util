@@ -88,18 +88,29 @@ function Get-SonarProjectCandidates {
         Get-ChildItem -LiteralPath $root -Directory | Where-Object { $excluded -notcontains $_.Name }
     }
 
-    @($directories | Sort-Object FullName | ForEach-Object {
-        $relative = $_.FullName.Substring($root.Length).TrimStart('\', '/')
-        $projectName = if ([string]$Config.projectName.mode -eq 'relativePath') {
-            ($relative -split '[\\/]' | Where-Object { $_ }) -join [string]$Config.projectName.separator
-        } else { $_.Name }
-        [pscustomobject]@{
-            Name = $projectName
-            Path = $_.FullName
-            RelativePath = $relative
-            ProjectKey = ConvertTo-SonarProjectKey -Prefix $Config.projectKeyPrefix -RelativePath $relative
-        }
-    })
+    @($directories | Sort-Object FullName | ForEach-Object { New-SonarProjectCandidate -Config $Config -Directory $_.FullName })
+}
+
+function New-SonarProjectCandidate {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$Config, [Parameter(Mandatory)][string]$Directory)
+
+    $root = (Resolve-Path -LiteralPath $Config.rootPath).Path.TrimEnd('\', '/')
+    $path = (Resolve-Path -LiteralPath $Directory).Path.TrimEnd('\', '/')
+    $rootPrefix = $root + [IO.Path]::DirectorySeparatorChar
+    if (-not $path.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Candidate directory must be below rootPath: $path"
+    }
+    $relative = $path.Substring($root.Length).TrimStart('\', '/')
+    $projectName = if ([string]$Config.projectName.mode -eq 'relativePath') {
+        ($relative -split '[\\/]' | Where-Object { $_ }) -join [string]$Config.projectName.separator
+    } else { Split-Path -Leaf $path }
+    [pscustomobject]@{
+        Name = $projectName
+        Path = $path
+        RelativePath = $relative
+        ProjectKey = ConvertTo-SonarProjectKey -Prefix $Config.projectKeyPrefix -RelativePath $relative
+    }
 }
 
 function Get-SonarToken {
@@ -219,6 +230,6 @@ function Invoke-SonarScannerBatch {
     return @($results)
 }
 
-Export-ModuleMember -Function Read-SonarToolConfig, Read-SonarProperties, ConvertTo-SonarProjectKey, Get-SonarProjectCandidates,
+Export-ModuleMember -Function Read-SonarToolConfig, Read-SonarProperties, ConvertTo-SonarProjectKey, Get-SonarProjectCandidates, New-SonarProjectCandidate,
     Test-SonarAuthentication, Test-SonarProjectExists, New-SonarProject, Remove-SonarProject,
     Add-ProjectsToSonarApplication, Invoke-SonarScannerBatch

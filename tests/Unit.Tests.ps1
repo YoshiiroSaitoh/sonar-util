@@ -37,6 +37,9 @@ try {
     $nestedItems = @(Get-SonarProjectCandidates $config)
     Assert-Equal 'services / api' $nestedItems[0].Name 'relative path project name'
     Assert-Equal 'test-services-api' $nestedItems[0].ProjectKey 'nested candidate key'
+    $arbitrary = New-SonarProjectCandidate $config $nested
+    Assert-Equal 'services / api' $arbitrary.Name 'arbitrary tree candidate name'
+    Assert-Equal $nested $arbitrary.Path 'arbitrary tree candidate path'
 } finally { Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue }
 
 $moduleText = Get-Content -Raw (Join-Path $PSScriptRoot '..\SonarQubeTool.psm1')

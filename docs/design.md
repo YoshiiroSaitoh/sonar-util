@@ -191,8 +191,11 @@ GUIはWindows Formsで構築する。
 | Configパス | 読み込むJSON設定 |
 | Browse | JSONファイル選択 |
 | Load | 設定と候補を再読込 |
-| 候補一覧 | チェックボックス付きProject候補 |
-| Select all | 全候補をチェック |
+| ディレクトリツリー | `rootPath` 配下を遅延展開し、任意階層をチェック |
+| Projectプレビュー | 選択対象の名前、Key、絶対パス |
+| Select configured | `splitDirectories` または直下候補を再選択 |
+| Clear | 全選択解除 |
+| Refresh tree | ファイルシステムを再読込 |
 | Validate Token | Token認証確認 |
 | Dry Run | 選択候補の存在と予定を表示 |
 | Create | 選択候補のProjectを作成 |
@@ -202,7 +205,17 @@ GUIはWindows Formsで構築する。
 
 ### 7.2 選択状態
 
-Create、Scan、Delete、Dry Runは実行時点でチェックされている候補だけを対象とする。選択状態はSonarQubeへ保存しない。GUIを再起動すると初期化される。
+Create、Scan、Delete、Dry Runは実行時点でツリー上のチェックされたディレクトリだけを対象とする。選択のたびに `New-SonarProjectCandidate` で候補を生成し、右側へプレビューする。
+
+ツリーは初回に `rootPath` 直下だけを読み込み、ノード展開時に1階層ずつ遅延読込する。`excludeDirectories` はツリーの全階層でディレクトリ名に適用する。
+
+親子の同時選択は重複解析となるため許可しない。
+
+- 親をチェック: 読み込み済み子孫を解除
+- 子をチェック: チェック済み祖先を解除
+- `Select configured` に親子重複がある場合: 親を優先して子孫を解除
+
+選択状態はSonarQubeやJSONへ保存しない。GUIを再起動またはRefreshすると `splitDirectories` の内容へ戻る。`splitDirectories` が空の場合は直下ディレクトリを選択する。
 
 ### 7.3 操作中状態
 
@@ -526,6 +539,7 @@ Pending Queue
 - Application登録の重複確認を行わない
 - Delete前の存在確認を行わない
 - ツールが作成したProjectの厳密な台帳を持たない
+- GUIツリーの選択をJSONへ保存できない
 - GUI処理中は画面操作できない
 - Scanner出力のファイル保存がない
 - API用プロキシをツール設定で明示できない
@@ -550,7 +564,8 @@ Pending Queue
 4. 作成Project台帳による削除安全性向上
 5. Deleteの存在確認による冪等化
 6. Application存在確認・作成・登録済み確認
-7. GUIの非同期化、進捗、キャンセル
-8. Scannerログのファイル保存
-9. API用明示プロキシ設定
-10. PesterによるAPIモックテストとGUI自動テスト
+7. GUIツリー選択のJSON保存
+8. GUIの非同期化、進捗、キャンセル
+9. Scannerログのファイル保存
+10. API用明示プロキシ設定
+11. PesterによるAPIモックテストとGUI自動テスト

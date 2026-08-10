@@ -171,13 +171,40 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Start-SonarQubeToolGui
 GUIの基本手順:
 
 1. **Load** で設定を読み込む
-2. **Validate Token** で接続・認証を確認
-3. 対象Projectをチェック
+2. 左側のディレクトリツリーを展開し、直下または任意階層の対象をチェック
+3. 右側のProject名・Project Key・パスのプレビューを確認
 4. **Dry Run** で予定を確認
 5. **Create** でProjectを作成
 6. **Scan** でSonarScannerを並列実行
 7. SonarQube Web UIで結果を確認
 8. 必要な場合だけ **Delete** でProjectを削除
+
+### GUIのディレクトリツリー
+
+GUIは `rootPath` 配下を階層表示します。JSONへ未登録の階層も、ツリーを展開して今回の実行対象にできます。
+
+```text
+☑ frontend
+☐ services
+   ☑ api
+   ☐ batch
+☐ tools
+```
+
+- 任意階層をチェック可能
+- **Select configured**: `splitDirectories` の設定内容を再選択
+- `splitDirectories` が空の場合、直下ディレクトリを再選択
+- **Clear**: 全選択解除
+- **Refresh tree**: ディレクトリ構成を再読込
+- 右側にProject表示名、Project Key、絶対パスを表示
+- GUIでのチェックは今回の実行中だけ有効で、JSONへ自動保存しない
+
+親とその配下を同時に選ぶと解析範囲が重複するため、GUIは同時選択を許可しません。親をチェックすると読み込み済みの子孫を解除し、子をチェックすると祖先を解除します。
+
+```text
+servicesを選択      → services/apiは選択解除
+services/apiを選択  → servicesは選択解除
+```
 
 ## 接続先とプロキシ設定
 
@@ -312,6 +339,8 @@ ScannerがPATHにない場合:
   "parallelism": 4
 }
 ```
+
+この設定はCLIの候補と、GUIの **Select configured** の初期選択に使われます。GUIでは設定外のディレクトリもツリーから選択できますが、その選択をJSONへ保存する機能はありません。
 
 ### サブディレクトリをProject名に含める
 
