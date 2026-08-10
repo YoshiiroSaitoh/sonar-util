@@ -1,0 +1,5 @@
+# Local secrets used by Podman Compose.
+podman/.env
+
+# SonarScanner local work directories.
+**/.scannerwork/

@@ -1,0 +1,21 @@
+{
+  "rootPath": "E:\\dev\\workspace\\sonarqubetool\\testdata",
+  "projectKeyPrefix": "test",
+  "sonar": {
+    "url": "http://localhost:9000",
+    "applicationKey": null
+  },
+  "scanner": {
+    "executable": "sonar-scanner.bat",
+    "parallelism": 4
+  },
+  "splitDirectories": [],
+  "excludeDirectories": [
+    ".git",
+    "node_modules",
+    "bin",
+    "obj"
+  ],
+  "allowDelete": true,
+  "deleteOnlyCreatedByTool": true
+}
