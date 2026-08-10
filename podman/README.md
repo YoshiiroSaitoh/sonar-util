@@ -95,7 +95,7 @@ $env:SONAR_TOKEN = "発行したToken"
 
 ## Community Build 用設定
 
-リポジトリ直下の [`sample-config-community.json`](../sample-config-community.json) を使用します。テスト対象に合わせて `rootPath` を変更してください。
+リポジトリ直下の [`sample-config-community.json`](../sample-config-community.json) と [`sonar-community.properties`](../sonar-community.properties) を使用します。テスト対象に合わせて `rootPath` を変更してください。SonarQube URLとScanner設定はpropertiesファイルで管理します。
 
 Community Build には Enterprise の Application 機能がないため、`sonar.applicationKey` は `null` のままにするか、プロパティ自体を省略します。ツールはその場合、Application の作成、Application への Project 登録、Application 集約表示を含む Application 関連APIを一切呼び出してはいけません。これらは Enterprise 環境でのみ統合テストします。
 

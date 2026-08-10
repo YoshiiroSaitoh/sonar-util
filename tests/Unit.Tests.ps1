@@ -13,6 +13,14 @@ Assert-Equal 'test-api-one' (ConvertTo-SonarProjectKey test 'API One') 'key norm
 Assert-Equal 'prefix-a-b' (ConvertTo-SonarProjectKey prefix 'A\B') 'path normalization'
 Assert-Throws { ConvertTo-SonarProjectKey '' '123' } 'numeric-only key rejection'
 
+$propertyFile = Join-Path ([IO.Path]::GetTempPath()) "sonar-properties-$([guid]::NewGuid()).properties"
+try {
+    Set-Content -LiteralPath $propertyFile -Value @('# comment','sonar.host.url=http://localhost:9000','sonar.sources=.')
+    $properties = Read-SonarProperties $propertyFile
+    Assert-Equal 'http://localhost:9000' $properties['sonar.host.url'] 'property file URL'
+    Assert-Equal '.' $properties['sonar.sources'] 'property file sources'
+} finally { Remove-Item -LiteralPath $propertyFile -Force -ErrorAction SilentlyContinue }
+
 $temp = Join-Path ([IO.Path]::GetTempPath()) "sonar-tool-test-$([guid]::NewGuid())"
 try {
     $null = New-Item -ItemType Directory -Path (Join-Path $temp 'alpha') -Force

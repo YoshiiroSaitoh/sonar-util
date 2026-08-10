@@ -2,7 +2,7 @@
   "rootPath": "E:\\dev\\workspace\\sonarqubetool\\testdata",
   "projectKeyPrefix": "test",
   "sonar": {
-    "url": "http://localhost:9000",
+    "propertiesFile": "sonar-community.properties",
     "applicationKey": null
   },
   "scanner": {

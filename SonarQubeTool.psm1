@@ -10,7 +10,17 @@ function Read-SonarToolConfig {
     foreach ($required in 'rootPath', 'projectKeyPrefix', 'sonar', 'scanner') {
         if (-not $config.PSObject.Properties[$required]) { throw "Required config property '$required' is missing." }
     }
-    if (-not $config.sonar.url) { throw "Required config property 'sonar.url' is missing." }
+    if (-not $config.sonar.PSObject.Properties['propertiesFile'] -or -not $config.sonar.propertiesFile) {
+        throw "Required config property 'sonar.propertiesFile' is missing."
+    }
+    $configDirectory = Split-Path -Parent $resolved
+    $propertiesPath = [string]$config.sonar.propertiesFile
+    if (-not [IO.Path]::IsPathRooted($propertiesPath)) { $propertiesPath = Join-Path $configDirectory $propertiesPath }
+    $propertiesPath = (Resolve-Path -LiteralPath $propertiesPath).Path
+    $sonarProperties = Read-SonarProperties -Path $propertiesPath
+    if (-not $sonarProperties.ContainsKey('sonar.host.url')) { throw "Required property 'sonar.host.url' is missing from $propertiesPath." }
+    $config.sonar | Add-Member -NotePropertyName url -NotePropertyValue $sonarProperties['sonar.host.url'] -Force
+    $config.sonar | Add-Member -NotePropertyName resolvedPropertiesFile -NotePropertyValue $propertiesPath -Force
     if (-not $config.scanner.executable) { throw "Required config property 'scanner.executable' is missing." }
     if (-not $config.scanner.PSObject.Properties['parallelism']) { $config.scanner | Add-Member parallelism 1 }
     if ([int]$config.scanner.parallelism -lt 1) { throw 'scanner.parallelism must be 1 or greater.' }
@@ -19,6 +29,24 @@ function Read-SonarToolConfig {
     if (-not $config.PSObject.Properties['allowDelete']) { $config | Add-Member allowDelete $false }
     if (-not $config.PSObject.Properties['deleteOnlyCreatedByTool']) { $config | Add-Member deleteOnlyCreatedByTool $true }
     return $config
+}
+
+function Read-SonarProperties {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path)
+
+    $result = @{}
+    foreach ($line in Get-Content -LiteralPath $Path) {
+        $trimmed = $line.Trim()
+        if (-not $trimmed -or $trimmed.StartsWith('#') -or $trimmed.StartsWith('!')) { continue }
+        $separator = $trimmed.IndexOf('=')
+        if ($separator -lt 1) { $separator = $trimmed.IndexOf(':') }
+        if ($separator -lt 1) { throw "Invalid Sonar property line in '$Path': $line" }
+        $key = $trimmed.Substring(0, $separator).Trim()
+        $value = $trimmed.Substring($separator + 1).Trim()
+        $result[$key] = $value
+    }
+    return $result
 }
 
 function ConvertTo-SonarProjectKey {
@@ -152,8 +180,9 @@ function Invoke-SonarScannerBatch {
     $parallelism = [Math]::Max(1, [int]$Config.scanner.parallelism)
     $executable = [string]$Config.scanner.executable
     $url = [string]$Config.sonar.url
+    $propertiesFile = [string]$Config.sonar.resolvedPropertiesFile
     $work = @($Candidates | ForEach-Object {
-        [pscustomobject]@{ Name=$_.Name; Path=$_.Path; ProjectKey=$_.ProjectKey; Executable=$executable; Url=$url; Token=$token }
+        [pscustomobject]@{ Name=$_.Name; Path=$_.Path; ProjectKey=$_.ProjectKey; Executable=$executable; Url=$url; Token=$token; PropertiesFile=$propertiesFile }
     })
     if (-not $PSCmdlet.ShouldProcess("$($work.Count) project(s)", "Run scanner with parallelism $parallelism")) { return @() }
 
@@ -167,7 +196,7 @@ function Invoke-SonarScannerBatch {
             $running += Start-Job -ArgumentList $item -ScriptBlock {
                 param($workItem)
                 Set-Location -LiteralPath $workItem.Path
-                $output = & $workItem.Executable "-Dsonar.projectKey=$($workItem.ProjectKey)" "-Dsonar.projectName=$($workItem.Name)" "-Dsonar.sources=." "-Dsonar.host.url=$($workItem.Url)" "-Dsonar.token=$($workItem.Token)" 2>&1 | Out-String
+                $output = & $workItem.Executable "-Dproject.settings=$($workItem.PropertiesFile)" "-Dsonar.projectKey=$($workItem.ProjectKey)" "-Dsonar.projectName=$($workItem.Name)" "-Dsonar.token=$($workItem.Token)" 2>&1 | Out-String
                 [pscustomobject]@{ ProjectKey=$workItem.ProjectKey; ExitCode=$LASTEXITCODE; Output=$output }
             }
         }
@@ -179,6 +208,6 @@ function Invoke-SonarScannerBatch {
     return @($results)
 }
 
-Export-ModuleMember -Function Read-SonarToolConfig, ConvertTo-SonarProjectKey, Get-SonarProjectCandidates,
+Export-ModuleMember -Function Read-SonarToolConfig, Read-SonarProperties, ConvertTo-SonarProjectKey, Get-SonarProjectCandidates,
     Test-SonarAuthentication, Test-SonarProjectExists, New-SonarProject, Remove-SonarProject,
     Add-ProjectsToSonarApplication, Invoke-SonarScannerBatch
