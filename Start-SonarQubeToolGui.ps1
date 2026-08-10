@@ -29,6 +29,7 @@ $form.Controls.AddRange(@($pathBox,$browse,$load,$rootLabel,$treeLabel,$previewL
 
 $script:settings=$null
 $script:suppressTreeEvents=$false
+$script:rootNode=$null
 function Write-UiLog([string]$Message) { $log.AppendText("$(Get-Date -Format HH:mm:ss) $Message`r`n") }
 function Invoke-UiAction([scriptblock]$Action) {
     try { $form.UseWaitCursor=$true; & $Action }
@@ -63,6 +64,13 @@ function Update-Preview {
     }
     $previewLabel.Text="Selected project preview ($($preview.Items.Count))"
 }
+function Update-RootCheckState {
+    if (-not $script:rootNode) { return }
+    $children=@($script:rootNode.Nodes | Where-Object {$null -ne $_.Tag})
+    $allChecked=$children.Count -gt 0 -and @($children | Where-Object {-not $_.Checked}).Count -eq 0
+    $script:suppressTreeEvents=$true
+    try {$script:rootNode.Checked=$allChecked} finally {$script:suppressTreeEvents=$false}
+}
 function Set-DescendantsUnchecked([Windows.Forms.TreeNode]$Node) {
     foreach($child in $Node.Nodes){if($null -ne $child.Tag){$child.Checked=$false}; Set-DescendantsUnchecked $child}
 }
@@ -74,7 +82,7 @@ function Clear-TreeChecks {
 function Find-ChildNode([Windows.Forms.TreeNodeCollection]$Nodes,[string]$FullPath) { @($Nodes | Where-Object {$_.Tag -and [string]::Equals([string]$_.Tag,$FullPath,[StringComparison]::OrdinalIgnoreCase)}) | Select-Object -First 1 }
 function Select-RelativeDirectory([string]$RelativePath) {
     $root=(Resolve-Path -LiteralPath $script:settings.rootPath).Path.TrimEnd('\','/')
-    $parent=$null; $nodes=$tree.Nodes; $current=$root
+    $parent=$null; $nodes=$script:rootNode.Nodes; $current=$root
     foreach($part in $RelativePath -split '[\\/]' | Where-Object {$_}){
         $current=Join-Path $current $part
         if($parent){Expand-DirectoryNode $parent}
@@ -92,20 +100,33 @@ function Select-ConfiguredDirectories {
     try { foreach($relative in $configured){Select-RelativeDirectory ([string]$relative)} } finally {$script:suppressTreeEvents=$false}
     # Normalize parent/child overlap through the same selection rule.
     foreach($node in @(Get-AllLoadedNodes $tree.Nodes | Where-Object Checked)){Set-DescendantsUnchecked $node}
+    Update-RootCheckState
     Update-Preview
 }
 function Load-DirectoryTree {
     $script:settings=Read-SonarToolConfig -Path $pathBox.Text
     $root=(Resolve-Path -LiteralPath $script:settings.rootPath).Path
     $rootLabel.Text="Root: $root"
-    $tree.Nodes.Clear(); foreach($directory in Get-VisibleDirectories $root){$null=Add-DirectoryNode $tree.Nodes $directory}
+    $tree.Nodes.Clear()
+    $script:rootNode=[Windows.Forms.TreeNode]::new("$(Split-Path -Leaf $root)  [check: select direct children]")
+    $script:rootNode.Name='__SONAR_ROOT__'; $script:rootNode.Tag=$null
+    $null=$tree.Nodes.Add($script:rootNode)
+    foreach($directory in Get-VisibleDirectories $root){$null=Add-DirectoryNode $script:rootNode.Nodes $directory}
+    $script:rootNode.Expand()
     Select-ConfiguredDirectories
     Write-UiLog "Loaded tree. Selected $($preview.Items.Count) candidate(s). Application API: $(if($script:settings.sonar.applicationKey){'enabled'}else{'disabled'})"
 }
 
 $tree.Add_BeforeExpand({param($sender,$eventArgs) Invoke-UiAction {Expand-DirectoryNode $eventArgs.Node}})
 $tree.Add_AfterCheck({param($sender,$eventArgs)
-    if($script:suppressTreeEvents -or $null -eq $eventArgs.Node.Tag){return}
+    if($script:suppressTreeEvents){return}
+    if($eventArgs.Node.Name -eq '__SONAR_ROOT__'){
+        $script:suppressTreeEvents=$true
+        try { foreach($child in $eventArgs.Node.Nodes){$child.Checked=$eventArgs.Node.Checked;if($eventArgs.Node.Checked){Set-DescendantsUnchecked $child}} } finally {$script:suppressTreeEvents=$false}
+        Update-Preview
+        return
+    }
+    if($null -eq $eventArgs.Node.Tag){return}
     $script:suppressTreeEvents=$true
     try {
         if($eventArgs.Node.Checked){
@@ -113,6 +134,7 @@ $tree.Add_AfterCheck({param($sender,$eventArgs)
             Set-DescendantsUnchecked $eventArgs.Node
         }
     } finally {$script:suppressTreeEvents=$false}
+    Update-RootCheckState
     Update-Preview
 })
 $browse.Add_Click({$dialog=[Windows.Forms.OpenFileDialog]@{Filter='JSON config (*.json)|*.json|All files (*.*)|*.*';FileName=$pathBox.Text};if($dialog.ShowDialog() -eq 'OK'){$pathBox.Text=$dialog.FileName}})
@@ -128,7 +150,10 @@ $delete.Add_Click({Invoke-UiAction {$selected=Get-SelectedCandidates;if(-not $se
 $form.Add_Shown({Invoke-UiAction {Load-DirectoryTree}})
 if ([Environment]::GetEnvironmentVariable('SONAR_TOOL_GUI_TEST_MODE','Process') -eq '1') {
     Load-DirectoryTree
-    Write-Output "GUI smoke test passed: tree=$($tree.Nodes.Count), selected=$($preview.Items.Count)"
+    Clear-TreeChecks
+    $script:rootNode.Checked=$true
+    if ($preview.Items.Count -ne $script:rootNode.Nodes.Count) { throw 'Root bulk selection smoke test failed.' }
+    Write-Output "GUI smoke test passed: roots=$($tree.Nodes.Count), direct=$($script:rootNode.Nodes.Count), selected=$($preview.Items.Count)"
     return
 }
 [void]$form.ShowDialog()

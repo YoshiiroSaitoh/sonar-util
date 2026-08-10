@@ -186,6 +186,7 @@ GUIの基本手順:
 GUIは `rootPath` 配下を階層表示します。JSONへ未登録の階層も、ツリーを展開して今回の実行対象にできます。
 
 ```text
+☑ system  [check: select direct children]
 ☑ frontend
 ☐ services
    ☑ api
@@ -193,7 +194,10 @@ GUIは `rootPath` 配下を階層表示します。JSONへ未登録の階層も�
 ☐ tools
 ```
 
+最上位のルートノードをチェックすると、`rootPath`直下のディレクトリを一括選択します。ルート自体を1 Projectとして扱うのではなく、直下をそれぞれ個別Projectとして選択します。ルートのチェックを外すと直下を一括解除します。
+
 - 任意階層をチェック可能
+- ルートのチェックで直下候補を一括選択／解除
 - **Select configured**: `splitDirectories` の設定内容を再選択
 - `splitDirectories` が空の場合、直下ディレクトリを再選択
 - **Clear**: 全選択解除
