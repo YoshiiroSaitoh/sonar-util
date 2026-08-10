@@ -33,6 +33,8 @@ function Read-SonarToolConfig {
     }
     if (-not $config.projectName.PSObject.Properties['mode']) { $config.projectName | Add-Member mode 'directoryName' }
     if (-not $config.projectName.PSObject.Properties['separator']) { $config.projectName | Add-Member separator ' / ' }
+    if (-not $config.projectName.PSObject.Properties['includePrefix']) { $config.projectName | Add-Member includePrefix $false }
+    if (-not $config.projectName.PSObject.Properties['prefixSeparator']) { $config.projectName | Add-Member prefixSeparator ' / ' }
     if ([string]$config.projectName.mode -notin @('directoryName', 'relativePath')) {
         throw "projectName.mode must be 'directoryName' or 'relativePath'."
     }
@@ -105,6 +107,9 @@ function New-SonarProjectCandidate {
     $projectName = if ([string]$Config.projectName.mode -eq 'relativePath') {
         ($relative -split '[\\/]' | Where-Object { $_ }) -join [string]$Config.projectName.separator
     } else { Split-Path -Leaf $path }
+    if ([bool]$Config.projectName.includePrefix -and -not [string]::IsNullOrWhiteSpace([string]$Config.projectKeyPrefix)) {
+        $projectName = "$( [string]$Config.projectKeyPrefix )$([string]$Config.projectName.prefixSeparator)$projectName"
+    }
     [pscustomobject]@{
         Name = $projectName
         Path = $path

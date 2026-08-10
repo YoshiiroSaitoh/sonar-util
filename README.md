@@ -122,7 +122,9 @@ sonar.host.url=https://tools.example.co.jp/sonarqube
   "projectKeyPrefix": "test",
   "projectName": {
     "mode": "relativePath",
-    "separator": " / "
+    "separator": " / ",
+    "includePrefix": true,
+    "prefixSeparator": " / "
   },
   "sonar": {
     "propertiesFile": "sonar-community.properties",
@@ -309,6 +311,8 @@ HTTPS接続で証明書エラーになる場合、証明書検証を無効化す
 | `projectKeyPrefix` | 必須 | 生成するProject Keyの接頭辞 |
 | `projectName.mode` | 任意 | `directoryName`（末尾のみ）または `relativePath`（親階層を含む） |
 | `projectName.separator` | 任意 | `relativePath`表示名の階層区切り。既定値 ` / ` |
+| `projectName.includePrefix` | 任意 | 表示名にも `projectKeyPrefix` を付ける。既定値 `false` |
+| `projectName.prefixSeparator` | 任意 | prefixと表示名の区切り。既定値 ` / ` |
 | `sonar.propertiesFile` | 必須 | Sonar接続・解析propertiesファイル |
 | `sonar.applicationKey` | 任意 | Enterprise Application Key。Communityでは `null` または省略 |
 | `scanner.executable` | 必須 | Scanner実行ファイル名または絶対パス |
@@ -349,16 +353,18 @@ ScannerがPATHにない場合:
 ```json
 "projectName": {
   "mode": "relativePath",
-  "separator": " / "
+  "separator": " / ",
+  "includePrefix": true,
+  "prefixSeparator": " / "
 }
 ```
 
 | 相対パス | Project表示名 | Project Key |
 |---|---|---|
-| `services\\api` | `services / api` | `test-services-api` |
-| `jobs\\api` | `jobs / api` | `test-jobs-api` |
+| `services\\api` | `test / services / api` | `test-services-api` |
+| `jobs\\api` | `test / jobs / api` | `test-jobs-api` |
 
-`directoryName`を指定した場合は従来どおり、どちらの表示名も `api` になります。Project Keyはどちらのモードでも相対パスを含みます。
+`includePrefix=false`にすると表示名から `test / ` を除外できます。`directoryName`を指定すると親階層を表示名へ含めません。Project Keyは表示名設定にかかわらず相対パスを含みます。
 
 ## properties設定例
 

@@ -95,6 +95,8 @@ TokenやパスワードをGit管理ファイルへ保存しない。
 | `projectKeyPrefix` | string | なし | 必須 |
 | `projectName.mode` | string | `directoryName` | `directoryName` または `relativePath` |
 | `projectName.separator` | string | ` / ` | 相対パス表示時の区切り |
+| `projectName.includePrefix` | boolean | `false` | 表示名へKey prefixを付与 |
+| `projectName.prefixSeparator` | string | ` / ` | prefixと表示名の区切り |
 | `sonar.propertiesFile` | string | なし | 必須、相対または絶対パス |
 | `sonar.applicationKey` | string/null | 未指定可 | 空ならApplication API無効 |
 | `scanner.executable` | string | なし | 必須 |
@@ -173,11 +175,11 @@ Project Keyは次の規則で生成する。
 
 Projectの同一性はProject Keyだけで判定する。
 
-Project表示名は `projectName.mode` で決まる。`directoryName` は末尾ディレクトリ名、`relativePath` は相対パスの各階層を `projectName.separator` で連結する。
+Project表示名は `projectName.mode` で決まる。`directoryName` は末尾ディレクトリ名、`relativePath` は相対パスの各階層を `projectName.separator` で連結する。`includePrefix=true`の場合は、先頭へ `projectKeyPrefix` と `prefixSeparator` を付与する。
 
 ```text
-services\api + relativePath + " / " → services / api
-jobs\api     + relativePath + " / " → jobs / api
+services\api + relativePath + prefix → test / services / api
+jobs\api     + relativePath + prefix → test / jobs / api
 ```
 
 ## 7. GUI設計

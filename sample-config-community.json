@@ -3,7 +3,9 @@
   "projectKeyPrefix": "test",
   "projectName": {
     "mode": "relativePath",
-    "separator": " / "
+    "separator": " / ",
+    "includePrefix": true,
+    "prefixSeparator": " / "
   },
   "sonar": {
     "propertiesFile": "sonar-community.properties",
