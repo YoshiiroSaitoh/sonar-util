@@ -29,6 +29,11 @@ function Read-SonarToolConfig {
     }
     if (-not $config.scanner.javaBinaries.PSObject.Properties['directory']) { $config.scanner.javaBinaries | Add-Member directory 'classes' }
     if (-not $config.scanner.javaBinaries.PSObject.Properties['useDummyWhenMissing']) { $config.scanner.javaBinaries | Add-Member useDummyWhenMissing $true }
+    if (-not $config.scanner.PSObject.Properties['logs']) { $config.scanner | Add-Member logs ([pscustomobject]@{ directory = 'logs' }) }
+    if (-not $config.scanner.logs.PSObject.Properties['directory']) { $config.scanner.logs | Add-Member directory 'logs' }
+    $logDirectory = [string]$config.scanner.logs.directory
+    if (-not [IO.Path]::IsPathRooted($logDirectory)) { $logDirectory = Join-Path $configDirectory $logDirectory }
+    $config.scanner.logs | Add-Member resolvedDirectory ([IO.Path]::GetFullPath($logDirectory)) -Force
     if (-not $config.PSObject.Properties['splitDirectories']) { $config | Add-Member splitDirectories @() }
     if (-not $config.PSObject.Properties['excludeDirectories']) { $config | Add-Member excludeDirectories @() }
     if (-not $config.PSObject.Properties['allowDelete']) { $config | Add-Member allowDelete $false }
@@ -206,13 +211,15 @@ function Add-ProjectsToSonarApplication {
 
 function Invoke-SonarScannerBatch {
     [CmdletBinding(SupportsShouldProcess)]
-    param([Parameter(Mandatory)]$Config, [Parameter(Mandatory)][object[]]$Candidates)
+    param([Parameter(Mandatory)]$Config, [Parameter(Mandatory)][object[]]$Candidates, [scriptblock]$OnEvent)
 
     $token = Get-SonarToken
     $parallelism = [Math]::Max(1, [int]$Config.scanner.parallelism)
     $executable = [string]$Config.scanner.executable
     $url = [string]$Config.sonar.url
     $propertiesFile = [string]$Config.sonar.resolvedPropertiesFile
+    $logDirectory = [string]$Config.scanner.logs.resolvedDirectory
+    $null = [IO.Directory]::CreateDirectory($logDirectory)
     if (-not $PSCmdlet.ShouldProcess("$($Candidates.Count) project(s)", "Run scanner with parallelism $parallelism")) { return @() }
     $dummyBinaries = $null
     if ([bool]$Config.scanner.javaBinaries.useDummyWhenMissing) {
@@ -224,7 +231,9 @@ function Invoke-SonarScannerBatch {
         $javaBinaries = if (Test-Path -LiteralPath $configuredBinaries -PathType Container) {
             (Resolve-Path -LiteralPath $configuredBinaries).Path
         } elseif ($dummyBinaries) { $dummyBinaries } else { $null }
-        [pscustomobject]@{ Name=$_.Name; Path=$_.Path; ProjectKey=$_.ProjectKey; Executable=$executable; Url=$url; Token=$token; PropertiesFile=$propertiesFile; JavaBinaries=$javaBinaries }
+        $safeKey = $_.ProjectKey -replace '[^a-zA-Z0-9_.-]', '_'
+        $logPath = Join-Path $logDirectory "$safeKey-$(Get-Date -Format 'yyyyMMdd-HHmmssfff').log"
+        [pscustomobject]@{ Name=$_.Name; Path=$_.Path; ProjectKey=$_.ProjectKey; Executable=$executable; Url=$url; Token=$token; PropertiesFile=$propertiesFile; JavaBinaries=$javaBinaries; LogPath=$logPath }
     })
     try {
         $pending = [Collections.Queue]::new()
@@ -234,19 +243,29 @@ function Invoke-SonarScannerBatch {
         while ($pending.Count -or $running.Count) {
             while ($pending.Count -and $running.Count -lt $parallelism) {
                 $item = $pending.Dequeue()
+                if ($OnEvent) { $null = & $OnEvent ([pscustomobject]@{Type='Started';ProjectKey=$item.ProjectKey;LogPath=$item.LogPath;Timestamp=Get-Date}) }
                 $running += Start-Job -ArgumentList $item -ScriptBlock {
                     param($workItem)
                     Set-Location -LiteralPath $workItem.Path
                     $arguments = @("-Dproject.settings=$($workItem.PropertiesFile)", "-Dsonar.projectKey=$($workItem.ProjectKey)", "-Dsonar.projectName=$($workItem.Name)", "-Dsonar.token=$($workItem.Token)")
                     if ($workItem.JavaBinaries) { $arguments += "-Dsonar.java.binaries=$($workItem.JavaBinaries)" }
-                    $output = & $workItem.Executable @arguments 2>&1 | Out-String
-                    [pscustomobject]@{ ProjectKey=$workItem.ProjectKey; ExitCode=$LASTEXITCODE; Output=$output; JavaBinaries=$workItem.JavaBinaries }
+                    & $workItem.Executable @arguments 2>&1 | ForEach-Object { [pscustomobject]@{Type='Log';ProjectKey=$workItem.ProjectKey;Text=[string]$_} }
+                    [pscustomobject]@{Type='Completed';ProjectKey=$workItem.ProjectKey;ExitCode=$LASTEXITCODE;JavaBinaries=$workItem.JavaBinaries;LogPath=$workItem.LogPath}
                 }
             }
-            $done = Wait-Job -Job $running -Any
-            $results += Receive-Job -Job $done
-            Remove-Job -Job $done
-            $running = @($running | Where-Object Id -ne $done.Id)
+            Start-Sleep -Milliseconds 200
+            foreach ($job in @($running)) {
+                foreach ($event in @(Receive-Job -Job $job)) {
+                    if ($event.Type -eq 'Log') {
+                        Add-Content -LiteralPath $work.Where({$_.ProjectKey -eq $event.ProjectKey},'First').LogPath -Value $event.Text -Encoding UTF8
+                    } elseif ($event.Type -eq 'Completed') {
+                        $result=[pscustomobject]@{ProjectKey=$event.ProjectKey;ExitCode=[int]$event.ExitCode;Output=$null;JavaBinaries=$event.JavaBinaries;LogPath=$event.LogPath}
+                        $results += $result
+                        if ($OnEvent) { $null = & $OnEvent ([pscustomobject]@{Type='Completed';ProjectKey=$result.ProjectKey;ExitCode=$result.ExitCode;LogPath=$result.LogPath;Timestamp=Get-Date}) }
+                    }
+                }
+                if ($job.State -in @('Completed','Failed','Stopped')) { Remove-Job -Job $job -Force; $running=@($running|Where-Object Id -ne $job.Id) }
+            }
         }
         return @($results)
     } finally {

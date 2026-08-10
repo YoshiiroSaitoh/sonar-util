@@ -17,6 +17,9 @@
     "javaBinaries": {
       "directory": "classes",
       "useDummyWhenMissing": true
+    },
+    "logs": {
+      "directory": "logs"
     }
   },
   "splitDirectories": [],

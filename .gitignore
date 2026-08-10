@@ -3,3 +3,6 @@ podman/.env
 
 # SonarScanner local work directories.
 **/.scannerwork/
+
+# Per-project scanner logs.
+logs/

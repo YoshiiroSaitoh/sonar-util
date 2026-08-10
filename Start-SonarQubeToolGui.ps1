@@ -145,7 +145,23 @@ $clear.Add_Click({Clear-TreeChecks})
 $validate.Add_Click({Invoke-UiAction {if(Test-SonarAuthentication $script:settings){Write-UiLog 'SONAR_TOKEN is valid.'}else{throw 'SONAR_TOKEN was rejected.'}}})
 $dryRun.Add_Click({Invoke-UiAction {foreach($candidate in Get-SelectedCandidates){$exists=Test-SonarProjectExists $script:settings $candidate.ProjectKey;Write-UiLog "DRY RUN $($candidate.ProjectKey): $(if($exists){'exists; scan would run'}else{'would create and scan'})"}}})
 $create.Add_Click({Invoke-UiAction {$selected=Get-SelectedCandidates;foreach($candidate in $selected){if(Test-SonarProjectExists $script:settings $candidate.ProjectKey){Write-UiLog "EXISTS $($candidate.ProjectKey)"}else{New-SonarProject $script:settings $candidate;Write-UiLog "CREATED $($candidate.ProjectKey)"}};Add-ProjectsToSonarApplication $script:settings @($selected.ProjectKey)}})
-$scan.Add_Click({Invoke-UiAction {$results=@(Invoke-SonarScannerBatch $script:settings (Get-SelectedCandidates));foreach($result in $results){Write-UiLog "SCAN $($result.ProjectKey): exit $($result.ExitCode)"}}})
+$scan.Add_Click({Invoke-UiAction {
+    $selected=Get-SelectedCandidates
+    if(-not $selected.Count){Write-UiLog 'SCAN: no projects selected.';return}
+    $actionButtons=@($load,$refresh,$selectConfigured,$clear,$dryRun,$create,$scan,$delete,$validate)
+    foreach($button in $actionButtons){$button.Enabled=$false}
+    Write-UiLog "SCAN BATCH START count=$($selected.Count) parallelism=$($script:settings.scanner.parallelism)"
+    try {
+        $results=@(Invoke-SonarScannerBatch $script:settings $selected -OnEvent {
+            param($event)
+            if($event.Type -eq 'Started'){Write-UiLog "SCAN START $($event.ProjectKey) log=$($event.LogPath)"}
+            elseif($event.Type -eq 'Completed'){$status=if($event.ExitCode -eq 0){'SUCCESS'}else{'FAILED'};Write-UiLog "SCAN $status $($event.ProjectKey) exit=$($event.ExitCode) log=$($event.LogPath)"}
+            [Windows.Forms.Application]::DoEvents()
+        })
+        $failed=@($results|Where-Object ExitCode -ne 0).Count
+        Write-UiLog "SCAN BATCH COMPLETE success=$($results.Count-$failed) failed=$failed"
+    } finally {foreach($button in $actionButtons){$button.Enabled=$true}}
+}})
 $delete.Add_Click({Invoke-UiAction {$selected=Get-SelectedCandidates;if(-not $selected.Count){return};if([Windows.Forms.MessageBox]::Show("Delete $($selected.Count) selected project(s)?",'Confirm deletion','YesNo','Warning') -ne 'Yes'){return};foreach($candidate in $selected){Remove-SonarProject $script:settings $candidate.ProjectKey -Confirm:$false;Write-UiLog "DELETED $($candidate.ProjectKey)"}}})
 $form.Add_Shown({Invoke-UiAction {Load-DirectoryTree}})
 if ([Environment]::GetEnvironmentVariable('SONAR_TOOL_GUI_TEST_MODE','Process') -eq '1') {

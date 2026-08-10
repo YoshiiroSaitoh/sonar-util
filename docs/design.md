@@ -103,6 +103,7 @@ TokenやパスワードをGit管理ファイルへ保存しない。
 | `scanner.parallelism` | integer | `1` | 1以上 |
 | `scanner.javaBinaries.directory` | string | `classes` | 候補からの相対classディレクトリ |
 | `scanner.javaBinaries.useDummyWhenMissing` | boolean | `true` | 不在時の一時空ディレクトリ |
+| `scanner.logs.directory` | string | `logs` | Project別Scannerログ保存先 |
 | `splitDirectories` | string[] | `[]` | 指定時は全パスの存在確認 |
 | `excludeDirectories` | string[] | `[]` | 自動列挙時のみ使用 |
 | `allowDelete` | boolean | `false` | falseなら削除拒否 |
@@ -481,7 +482,7 @@ Pending Queue
 
 ### 19.1 GUI
 
-時刻、操作種別、Project Key、結果またはエラーを画面下部へ表示する。ファイルへの永続保存はしない。
+時刻、操作種別、Project Key、結果またはエラーを画面下部へリアルタイム表示する。Scan中はWindowsメッセージを処理して画面再描画を維持し、競合する操作ボタンを無効化する。
 
 ### 19.2 CLI
 
@@ -489,7 +490,7 @@ Pending Queue
 
 ### 19.3 Scanner出力
 
-コアモジュールはScanner出力を結果オブジェクトへ格納する。現在のGUIは終了コードだけを要約表示し、Scanner全文をGUIログへ表示しない。
+コアモジュールはScanner出力を行単位で受信し、Project別UTF-8ログへ逐次追記する。GUIへはStarted／Completedイベントだけを通知するため並列ログが混在しない。結果オブジェクトは全文を保持せず `LogPath` を返す。
 
 ## 20. テスト設計
 

@@ -323,6 +323,7 @@ HTTPS接続で証明書エラーになる場合、証明書検証を無効化す
 | `scanner.parallelism` | 任意 | Scanner最大並列数。既定値1、1以上 |
 | `scanner.javaBinaries.directory` | 任意 | 各Project直下のJava classディレクトリ。既定値 `classes` |
 | `scanner.javaBinaries.useDummyWhenMissing` | 任意 | classesがない場合に一時空ディレクトリを渡す。既定値 `true` |
+| `scanner.logs.directory` | 任意 | Project別Scannerログの保存先。JSONからの相対または絶対パス |
 | `splitDirectories` | 任意 | 候補にする相対ディレクトリを明示指定 |
 | `excludeDirectories` | 任意 | 自動候補検出から除外するディレクトリ名 |
 | `allowDelete` | 任意 | Project削除を許可するか |
@@ -378,6 +379,26 @@ Scan時の動作:
 ```
 
 ダミーディレクトリはProject配下を変更しません。これはE2Eやダミー解析用です。実際の `.class` がないJava Projectでは参照解決の精度が低下するため、本番解析ではコンパイル済みの `classes` を用意してください。自動指定を無効にする場合は `useDummyWhenMissing=false` とし、`classes`が存在しない候補では `sonar.java.binaries` を実行時指定しません。
+
+### Scan中の進捗とログ
+
+GUIはProject単位の開始・成功・失敗をリアルタイムにSummary表示します。Scannerの詳細出力は混在させず、Project別ファイルへ逐次保存します。
+
+```text
+10:15:01 SCAN START test-service-a log=...\test-service-a-20260810-101501.log
+10:15:02 SCAN START test-service-b log=...\test-service-b-20260810-101502.log
+10:15:14 SCAN SUCCESS test-service-a exit=0
+10:15:17 SCAN FAILED test-service-b exit=1
+10:15:17 SCAN BATCH COMPLETE success=1 failed=1
+```
+
+```json
+"logs": {
+  "directory": "logs"
+}
+```
+
+Scan中も画面の再描画と移動は可能です。二重実行や設定変更を防ぐため操作ボタンはScan完了まで無効化されます。Scanner全文をGUIメモリーへ保持しないため、Project数やログ量が増えてもログによるメモリー増加を抑えます。
 
 この設定はCLIの候補と、GUIの **Select configured** の初期選択に使われます。GUIでは設定外のディレクトリもツリーから選択できますが、その選択をJSONへ保存する機能はありません。
 
