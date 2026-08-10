@@ -163,6 +163,39 @@ GUIの基本手順:
 
 ## 接続先とプロキシ設定
 
+### どのプロキシ設定が使われるか
+
+本ツールでは、処理によって通信を行うプログラムが異なるため、参照するプロキシ設定も異なります。
+
+| 操作 | 通信主体 | 使用するプロキシ設定 |
+|---|---|---|
+| Token認証確認 | PowerShell API | Windows／.NETの既定プロキシ |
+| Project存在確認 | PowerShell API | Windows／.NETの既定プロキシ |
+| Project作成・削除 | PowerShell API | Windows／.NETの既定プロキシ |
+| Applicationへの登録 | PowerShell API | Windows／.NETの既定プロキシ |
+| SonarScanner実行 | SonarScanner（Java） | `sonar.scanner.proxyHost` など |
+| Podmanイメージ取得 | WSL上のPodman | WSLの `HTTP_PROXY`／`HTTPS_PROXY` |
+
+重要: propertiesファイルの `sonar.scanner.proxyHost` はSonarScanner専用です。Project作成・削除などのAPI通信には適用されません。
+
+PowerShellによるAPI通信は、Windows／.NETが認識している既定プロキシと例外設定を使用します。現在のWinHTTP設定は次のコマンドで確認できます。
+
+```powershell
+netsh winhttp show proxy
+```
+
+組織の端末管理によっては、Windowsの **インターネット オプション** または **設定 → ネットワークとインターネット → プロキシ** で配布された設定も利用されます。実際の適用元はPowerShell／.NETのバージョンと組織ポリシーによって異なります。
+
+ローカルPodmanや、プロキシを経由させない社内SonarQubeはWindows側のプロキシ例外へ登録します。
+
+```text
+localhost
+127.0.0.1
+sonarqube.example.co.jp
+```
+
+API通信だけが失敗する場合は、Scanner用propertiesを変更するのではなく、Windowsのプロキシ・例外・認証状態を確認してください。反対に、Token確認やProject作成は成功してScanだけ失敗する場合は、`sonar.scanner.proxyHost` などのScanner設定を確認します。
+
 ### SonarQube接続先
 
 接続先はJSONではなくpropertiesファイルの `sonar.host.url` に設定します。
